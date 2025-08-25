@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Traffic Signal — Manual & Auto Modes</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --bg:#0f1220; --panel:#151a2c; --muted:#7b86a6; --accent:#5b7cfa;
+      --red:#ff3b30; --yellow:#ffcc00; --green:#34c759;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial;
+      background: radial-gradient(1200px 600px at 70% -10%, #1e2542 0, #0f1220 40%, #0b0e19 100%);
+      color:#e7ecff;
+      min-height:100dvh; display:grid; place-items:center; padding:24px;
+    }
+    .app{
+      width:min(980px, 95vw);
+      display:grid; gap:20px;
+      grid-template-columns: 380px 1fr;
+    }
+    @media (max-width:880px){ .app{grid-template-columns: 1fr;} }
+    .card{
+      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:20px; padding:18px;
+      box-shadow: 0 20px 40px rgba(0,0,0,.35);
+    }
+    .title{font-weight:700; letter-spacing:.3px; font-size:20px; margin:4px 0 14px}
+    .muted{color:var(--muted); font-size:13px}
+    .controls{display:flex; gap:10px; flex-wrap:wrap; margin:8px 0 4px}
+    button{
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.04);
+      color:#e7ecff; padding:10px 14px; border-radius:12px;
+      cursor:pointer; font-weight:600; letter-spacing:.2px;
+      transition:.2s transform, .2s background, .2s border-color, .2s opacity;
+    }
+    button:hover{ transform:translateY(-1px); border-color:rgba(255,255,255,.25) }
+    button.primary{ background:linear-gradient(180deg, var(--accent), #3c57e8); border:none }
+    button.ghost{ background:transparent }
+    button.danger{ background:linear-gradient(180deg, #ff5b5b, #e94545); border:none }
+    button:disabled{ opacity:.5; cursor:not-allowed; transform:none }
+    .stack{ display:flex; flex-direction:column; gap:12px }
+
+    /* Traffic light tower */
+    .tower{
+      background:var(--panel);
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:22px; padding:22px;
+      width:100%; display:flex; flex-direction:column; align-items:center; gap:16px;
+      position:relative;
+    }
+    .bulb{
+      width:140px; height:140px; border-radius:50%;
+      background:#0a0e1b; border:2px solid rgba(255,255,255,.06);
+      box-shadow: inset 0 0 30px rgba(0,0,0,.6);
+      position:relative; filter:saturate(0.6) brightness(0.65);
+      transition: .25s filter, .25s box-shadow, .25s transform;
+    }
+    .bulb::after{
+      content:""; position:absolute; inset:0; border-radius:50%;
+      background: radial-gradient(40% 40% at 35% 30%, rgba(255,255,255,.45), transparent 40%),
+                  radial-gradient(70% 70% at 50% 60%, rgba(255,255,255,.06), transparent 70%);
+      mix-blend-mode: screen; opacity:.5;
+    }
+    .bulb.red.on{ background:radial-gradient(60px 60px at 50% 55%, #ff9c9c, var(--red)); filter:none;
+      box-shadow: 0 0 24px rgba(255,59,48,.6), inset 0 0 30px rgba(0,0,0,.5) }
+    .bulb.yellow.on{ background:radial-gradient(60px 60px at 50% 55%, #ffeaa1, var(--yellow)); filter:none;
+      box-shadow: 0 0 22px rgba(255,204,0,.6), inset 0 0 30px rgba(0,0,0,.5) }
+    .bulb.green.on{ background:radial-gradient(60px 60px at 50% 55%, #a9ffd0, var(--green)); filter:none;
+      box-shadow: 0 0 22px rgba(52,199,89,.6), inset 0 0 30px rgba(0,0,0,.5) }
+
+    .panel{
+      display:grid; gap:14px;
+      grid-template-columns: 1fr 1fr;
+    }
+    @media (max-width:880px){ .panel{ grid-template-columns: 1fr } }
+    .section{ padding:14px; border:1px dashed rgba(255,255,255,.14); border-radius:16px }
+    .grid2{ display:grid; grid-template-columns: 1fr 1fr; gap:10px }
+    .row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap }
+    .badge{
+      padding:6px 10px; font-size:12px; border-radius:999px; background:rgba(255,255,255,.07);
+      border:1px solid rgba(255,255,255,.16)
+    }
+    .count{
+      font-size:52px; font-weight:800; letter-spacing:1px; margin:4px 0 0;
+    }
+    .log{
+      background:#0c1020; border:1px solid rgba(255,255,255,.08);
+      border-radius:14px; padding:10px; height:220px; overflow:auto; font-family: ui-monospace,SFMono-Regular,Consolas,Monaco,monospace; font-size:13px;
+    }
+    .hint{ font-size:12px; color:#9aa6cf }
+    .sr{ position:absolute; width:1px; height:1px; clip:rect(0 0 0 0); overflow:hidden; white-space:nowrap }
+    .divider{ height:1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent); margin:10px 0 }
+    .footer{ font-size:12px; color:#93a1d1 }
+    .chip{ padding:6px 8px; border-radius:999px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18) }
+    .select{ background:#0c1020; color:#e7ecff; border:1px solid rgba(255,255,255,.18); border-radius:10px; padding:8px 10px; }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <!-- Left: Tower -->
+    <section class="card">
+      <div class="title">Traffic Signal</div>
+      <div class="muted">Switch between Manual and Auto modes. In Auto, each light counts down.</div>
+      <div class="divider"></div>
+
+      <div class="tower" aria-live="polite">
+        <div class="bulb red" data-color="red" role="img" aria-label="Red light"></div>
+        <div class="bulb yellow" data-color="yellow" role="img" aria-label="Yellow light"></div>
+        <div class="bulb green" data-color="green" role="img" aria-label="Green light"></div>
+      </div>
+    </section>
+
+    <!-- Right: Controls & Status -->
+    <section class="card stack">
+      <div>
+        <div class="title">Controls</div>
+        <div class="controls">
+          <button id="btnManual" class="">Manual Mode</button>
+          <button id="btnAuto" class="primary">Auto Mode</button>
+          <button id="btnStop" class="danger" disabled>Stop</button>
+          <button id="btnReset" class="ghost">Reset</button>
+        </div>
+        <div class="row">
+          <span class="badge" id="modeBadge">Mode: Auto</span>
+          <span class="badge" id="stateBadge">State: —</span>
+          <span class="badge" id="cycleBadge">Cycles: 0</span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="section stack">
+          <div class="row">
+            <span class="chip">Manual Actions</span>
+            <span class="hint">Click a color to set the signal.</span>
+          </div>
+          <div class="grid2">
+            <button class="" data-manual="red">Red — STOP</button>
+            <button class="" data-manual="yellow">Yellow — READY</button>
+            <button class="" data-manual="green">Green — MOVE</button>
+            <button class="ghost" id="btnManualBack">Back (Exit Manual)</button>
+          </div>
+        </div>
+
+        <div class="section stack">
+          <div class="row" style="justify-content:space-between; align-items:flex-end">
+            <div>
+              <div class="chip">Auto Countdown</div>
+              <div class="count" id="countdown">—</div>
+            </div>
+            <div class="stack" style="gap:8px; align-items:flex-end">
+              <label class="hint">Durations (seconds)</label>
+              <div class="row">
+                <label class="hint">Red</label>
+                <input class="select" id="durRed" type="number" min="1" value="10" style="width:70px">
+                <label class="hint">Yellow</label>
+                <input class="select" id="durYellow" type="number" min="1" value="10" style="width:70px">
+                <label class="hint">Green</label>
+                <input class="select" id="durGreen" type="number" min="1" value="10" style="width:70px">
+              </div>
+              <div class="row">
+                <label class="hint">Repeat</label>
+                <select id="repeatMode" class="select">
+                  <option value="ask" selected>Ask after each cycle</option>
+                  <option value="loop">Loop forever</option>
+                  <option value="once">Run once</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="controls">
+            <button id="btnStartCycle" class="primary">Start Cycle</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section stack">
+        <div class="row">
+          <span class="chip">Log</span>
+          <span class="hint">Status updates appear here.</span>
+        </div>
+        <div id="log" class="log" aria-live="polite"></div>
+      </div>
+
+      <div class="footer">
+        Keyboard shortcuts: <b>M</b> Manual, <b>A</b> Auto, <b>S</b> Stop, <b>R</b> Reset.
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // ======== State ========
+    const bulbs = {
+      red: document.querySelector('.bulb.red'),
+      yellow: document.querySelector('.bulb.yellow'),
+      green: document.querySelector('.bulb.green'),
+    };
+    const logEl = document.getElementById('log');
+    const countdownEl = document.getElementById('countdown');
+    const modeBadge = document.getElementById('modeBadge');
+    const stateBadge = document.getElementById('stateBadge');
+    const cycleBadge = document.getElementById('cycleBadge');
+
+    const btnManual = document.getElementById('btnManual');
+    const btnAuto = document.getElementById('btnAuto');
+    const btnStop = document.getElementById('btnStop');
+    const btnReset = document.getElementById('btnReset');
+    const btnManualBack = document.getElementById('btnManualBack');
+    const btnStartCycle = document.getElementById('btnStartCycle');
+
+    const durRed = document.getElementById('durRed');
+    const durYellow = document.getElementById('durYellow');
+    const durGreen = document.getElementById('durGreen');
+    const repeatMode = document.getElementById('repeatMode');
+
+    const manualButtons = [...document.querySelectorAll('[data-manual]')];
+
+    let mode = 'auto';              // 'manual' | 'auto'
+    let state = null;               // 'red' | 'yellow' | 'green' | null
+    let timer = null;               // countdown interval
+    let stepCancel = null;          // canceller for current step
+    let cycles = 0;
+    let running = false;
+
+    // ======== Utils ========
+    const fmt = (msg) => `[${new Date().toLocaleTimeString()}] ${msg}`;
+    function log(msg){
+      logEl.insertAdjacentHTML('beforeend', `<div>${fmt(msg)}</div>`);
+      logEl.scrollTop = logEl.scrollHeight;
+      console.log(msg);
+    }
+
+    function setMode(m){
+      if (mode === m) return;
+      mode = m;
+      modeBadge.textContent = `Mode: ${m[0].toUpperCase()+m.slice(1)}`;
+      log(`Switched to ${m.toUpperCase()} mode.`);
+      if (m === 'manual'){
+        stopAll();
+        btnStop.disabled = true;
+      } else {
+        btnStop.disabled = !running;
+      }
+    }
+
+    function setState(color){
+      // Clear bulbs
+      Object.values(bulbs).forEach(b => b.classList.remove('on'));
+      // Set
+      if (color && bulbs[color]) bulbs[color].classList.add('on');
+      state = color;
+      stateBadge.textContent = `State: ${color ? color.toUpperCase() : '—'}`;
+      if (color === 'red') log('RED — STOP');
+      if (color === 'yellow') log('YELLOW — READY TO MOVE');
+      if (color === 'green') log('GREEN — MOVE');
+    }
+
+    function clearCountdown(){ countdownEl.textContent = '—'; }
+    function stopTimer(){
+      if (timer){ clearInterval(timer); timer = null; }
+    }
+    function stopAll(){
+      stopTimer();
+      if (stepCancel){ stepCancel(); stepCancel = null; }
+      running = false; btnStop.disabled = true;
+      clearCountdown();
+    }
+
+    // Run a single phase with countdown; returns a Promise that resolves when phase completes.
+    function runPhase(color, seconds){
+      setState(color);
+      seconds = Math.max(1, Number(seconds)||1);
+      countdownEl.textContent = seconds;
+      let remaining = seconds;
+      stopTimer();
+      let rejector;
+      const p = new Promise((resolve, reject)=>{
+        rejector = reject;
+        timer = setInterval(()=>{
+          remaining -= 1;
+          countdownEl.textContent = remaining >= 0 ? remaining : 0;
+          if (remaining <= 0){
+            stopTimer(); resolve();
+          }
+        }, 1000);
+      });
+      // Allow cancel
+      stepCancel = ()=>{
+        stopTimer();
+        rejector && rejector(new Error('cancelled'));
+      };
+      return p.finally(()=>{ stepCancel = null; });
+    }
+
+    async function runCycle(){
+      if (running) return;
+      running = true; btnStop.disabled = false;
+      try{
+        const r = Number(durRed.value)||10;
+        const y = Number(durYellow.value)||10;
+        const g = Number(durGreen.value)||10;
+
+        await runPhase('red', r);
+        await runPhase('yellow', y);
+        await runPhase('green', g);
+
+        cycles += 1;
+        cycleBadge.textContent = `Cycles: ${cycles}`;
+        log('One cycle completed.');
+      }catch(e){
+        if (e && e.message === 'cancelled'){ log('Cycle stopped.'); }
+        else console.warn(e);
+      }finally{
+        running = false; btnStop.disabled = true; clearCountdown();
+      }
+    }
+
+    async function runAuto(){
+      const modeSel = repeatMode.value; // ask | loop | once
+      if (modeSel === 'once'){
+        await runCycle();
+        return;
+      }
+      if (modeSel === 'loop'){
+        while(true){
+          await runCycle();
+          if (!document.isConnected) break;       // page left
+          if (mode !== 'auto') break;
+        }
+      }else{ // ask
+        await runCycle();
+        if (mode === 'auto'){
+          const again = confirm('Run another cycle?');
+          if (again){ await runAuto(); }
+          else log('Execution stop. Thank you.');
+        }
+      }
+    }
+
+    // ======== Wire up UI ========
+    btnManual.addEventListener('click', ()=> setMode('manual'));
+    btnAuto.addEventListener('click', ()=> setMode('auto'));
+    btnStop.addEventListener('click', ()=> stopAll());
+    btnReset.addEventListener('click', ()=>{
+      stopAll(); setState(null); cycles = 0; cycleBadge.textContent = 'Cycles: 0';
+      log('Reset complete.');
+    });
+
+    manualButtons.forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        if (mode !== 'manual'){ setMode('manual'); }
+        setState(btn.dataset.manual);
+      });
+    });
+    btnManualBack.addEventListener('click', ()=> {
+      log('Exit back from Manual.');
+      setMode('auto'); setState(null);
+    });
+
+    btnStartCycle.addEventListener('click', async ()=>{
+      if (mode !== 'auto'){ setMode('auto'); }
+      await runAuto();
+    });
+
+    // Keyboard shortcuts
+    window.addEventListener('keydown', (e)=>{
+      if (e.key.toLowerCase() === 'm') setMode('manual');
+      if (e.key.toLowerCase() === 'a') setMode('auto');
+      if (e.key.toLowerCase() === 's') stopAll();
+      if (e.key.toLowerCase() === 'r') { btnReset.click(); }
+    });
+
+    // Click bulbs in manual mode
+    Object.entries(bulbs).forEach(([color, el])=>{
+      el.style.cursor = 'pointer';
+      el.title = `Set ${color.toUpperCase()} (Manual)`;
+      el.addEventListener('click', ()=>{
+        if (mode !== 'manual'){ setMode('manual'); }
+        setState(color);
+      });
+    });
+
+    // Initialize
+    setMode('auto');
+    setState(null);
+    log('Ready.');
+  </script>
+
+  <!--
+    ========================= EXPRESS.JS SERVER (Node) =========================
+    Save the block below as "server.js" and run:
+        npm init -y
+        npm install express
+        node server.js
+    Then open the printed URL (e.g., http://localhost:3000).
+  -->
+  <!--
+  const express = require('express');
+  const path = require('path');
+  const fs = require('fs');
+
+  const app = express();
+  const PORT = process.env.PORT || 3000;
+
+  // Serve the traffic-light HTML (this file) if placed alongside server.js:
+  app.get('/', (req, res) => {
+    // Adjust the filename if you saved the HTML with a different name
+    const htmlPath = path.join(__dirname, 'traffic-light.html');
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    fs.createReadStream(htmlPath).pipe(res);
+  });
+
+  // Example API route (optional)
+  app.get('/api/time', (req, res) => {
+    res.json({ serverTime: new Date().toISOString() });
+  });
+
+  app.listen(PORT, () => {
+    console.log('Traffic Signal server running at http://localhost:' + PORT);
+  });
+  -->
+</body>
+</html>
